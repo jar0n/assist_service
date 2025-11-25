@@ -2,8 +2,9 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from anthropic.types import ToolUseBlock
 from sqlalchemy import insert, update
+
+from app.bedrock.schemas import ToolUseBlock
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 

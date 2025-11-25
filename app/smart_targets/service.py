@@ -2,8 +2,9 @@ import asyncio
 from logging import getLogger
 from uuid import UUID
 
-from anthropic.types import ToolUseBlock
 from httpx import AsyncClient, HTTPError, HTTPStatusError
+
+from app.bedrock.schemas import ToolUseBlock
 
 from app.bedrock.bedrock import BedrockHandler, RunMode
 from app.chat.utils import prepare_message_objects_for_llm

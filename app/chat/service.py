@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 import sqlalchemy
-from anthropic.types import TextBlock
 from fastapi import Body, Depends, Header, HTTPException
+
+from app.bedrock.schemas import TextBlock
 from fastapi.responses import StreamingResponse
 from sqlalchemy import cast, select, update
 from sqlalchemy.ext.asyncio import AsyncSession

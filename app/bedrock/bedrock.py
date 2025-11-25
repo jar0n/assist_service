@@ -2,8 +2,6 @@ import logging
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-from anthropic.types import MessageParam
-from anthropic.types.message import Message as AnthropicMessage
 from pydantic import BaseModel
 
 from app.bedrock.bedrock_stream import BedrockStreamInput, bedrock_stream
@@ -11,7 +9,7 @@ from app.bedrock.bedrock_types import AnthropicBedrockProvider, AsyncAnthropicBe
 from app.bedrock.retry import handle_region_failover_with_retries, with_region_failover_for_streaming
 from app.bedrock.schemas import LLMResponse, LLMTransaction
 from app.bedrock.service import llm_transaction
-from app.config import AWS_BEDROCK_REGION1, LLM_DEFAULT_MODEL
+from app.config import LLM_DEFAULT_MODEL
 from app.database.models import LLM, Message
 from app.database.table import LLMTable
 
@@ -58,33 +56,7 @@ class ToolResult(BaseModel):
 
 
 class BedrockHandler:
-    __CROSS_REGION_INFERENCE_MODELS = {
-        AWS_BEDROCK_REGION1: [
-            "anthropic.claude-opus-4-1-20250805-v1:0",
-            "anthropic.claude-sonnet-4-5-20250929-v1:0",
-            "anthropic.claude-opus-4-20250514-v1:0",
-            "anthropic.claude-sonnet-4-20250514-v1:0",
-            "anthropic.claude-3-7-sonnet-20250219-v1:0",
-            "anthropic.claude-3-haiku-20240307-v1:0",
-            "anthropic.claude-3-opus-20240229-v1:0",
-            "anthropic.claude-3-sonnet-20240229-v1:0",
-            "anthropic.claude-3-5-haiku-20241022-v1:0",
-            "anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "meta.llama3-1-70b-instruct-v1:0",
-            "meta.llama3-1-8b-instruct-v1:0",
-            "meta.llama3-2-11b-instruct-v1:0",
-            "meta.llama3-2-1b-instruct-v1:0",
-            "meta.llama3-2-3b-instruct-v1:0",
-            "meta.llama3-2-90b-instruct-v1:0",
-        ],
-    }
-    """
-    Supported regions and models for cross-region inference
-    See https://eu-central-1.console.aws.amazon.com/bedrock/home?region=eu-central-1#/cross-region-inference
-    """
-
-    __AWS_REGION_GEO_PREFIX = AWS_BEDROCK_REGION1.split("-")[0]
+    """Handler for OpenAI API calls. Name kept for backwards compatibility."""
 
     def __init__(
         self,
@@ -94,69 +66,122 @@ class BedrockHandler:
         system=None,
     ):
         """
-        Initializes the `BedrockHandler` instance with the following parameters:
+        Initializes the BedrockHandler instance with the following parameters:
 
         Args:
             max_tokens (int, optional): Maximum number of tokens for the model's response.
             Defaults to the model's internal `max_tokens` if not provided.
             llm (LLM, optional): An instance of the `LLM` model. If not provided, a default model is assigned.
             mode (RunMode, optional): Indicates the operation mode of the handler, defaults to `RunMode.SYNC`.
-            If not specified, a synchronous client (`AnthropicBedrock`) is initialized.
             system (str, optional): Optional system configuration for the model.
-
-        The constructor also checks if the model is supported for cross region inference in the specified AWS region
-        and sets up cross-region inference.
-
         """
-        # assign default llm model if no LLM model is provided
+        # Assign default llm model if no LLM model is provided
         self.llm = llm if llm else llm_get_default_model()
 
         if not max_tokens:
             max_tokens = self.llm.max_tokens
 
         if mode == RunMode.SYNC:
-            self.client = AnthropicBedrockProvider.get(AWS_BEDROCK_REGION1)
+            self.client = AnthropicBedrockProvider.get()
         elif mode == RunMode.ASYNC:
-            self.async_client = AsyncAnthropicBedrockProvider.get(AWS_BEDROCK_REGION1)
+            self.async_client = AsyncAnthropicBedrockProvider.get()
         else:
-            raise ValueError(f"Invalid Bedrock client mode: {mode}")
+            raise ValueError(f"Invalid client mode: {mode}")
 
-        # check if the model is supported for cross_region_inference
-        # if so, use the model with cross region inference mode.
-        cross_region_inference_models = self.__CROSS_REGION_INFERENCE_MODELS.get(AWS_BEDROCK_REGION1, [])
-        final_model_id = (
-            f"{self.__AWS_REGION_GEO_PREFIX}.{self.llm.model}"
-            if self.llm.model in cross_region_inference_models
-            else self.llm.model
-        )
-
-        self.model = final_model_id
+        self.model = self.llm.model
         self.config = {
             "model": self.model,
             "max_tokens": max_tokens,
         }
-        if system:
-            self.config["system"] = system
+        self.system = system
+
+    def _convert_messages_to_openai_format(self, messages: List[dict], system: Optional[str] = None) -> List[dict]:
+        """
+        Convert Anthropic message format to OpenAI format.
+
+        Anthropic format:
+        - System prompt is a separate parameter
+        - Messages have 'role' and 'content'
+
+        OpenAI format:
+        - System prompt is a message with role='system'
+        - Messages have 'role' and 'content'
+        """
+        openai_messages = []
+
+        # Add system message if provided
+        if system or self.system:
+            openai_messages.append({"role": "system", "content": system or self.system})
+
+        # Convert messages
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content")
+
+            # Handle different content formats
+            if isinstance(content, str):
+                openai_messages.append({"role": role, "content": content})
+            elif isinstance(content, list):
+                # Handle complex content with text blocks
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif "text" in block:
+                            text_parts.append(block["text"])
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+
+                openai_messages.append({"role": role, "content": " ".join(text_parts)})
+            else:
+                openai_messages.append({"role": role, "content": str(content)})
+
+        return openai_messages
+
+    def _convert_openai_response_to_result(self, response) -> Result:
+        """
+        Convert OpenAI response to Result format for backwards compatibility.
+        """
+        # Extract content
+        content_list = []
+        message = response.choices[0].message
+
+        if message.content:
+            content_list.append(Content(text=message.content))
+
+        # Handle tool calls if present
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            for tool_call in message.tool_calls:
+                import json
+
+                content_list.append(
+                    ContentToolUse(
+                        input=json.loads(tool_call.function.arguments), type=tool_call.function.name
+                    )
+                )
+
+        # Extract usage
+        usage = Usage(
+            input_tokens=response.usage.prompt_tokens, output_tokens=response.usage.completion_tokens
+        )
+
+        # Calculate cost (this will be done later in format_response)
+        return Result(content=content_list, completion_cost=0.0, usage=usage)
 
     def format_content_for_chat_title(self, content: str) -> List[dict]:
         """
-        Formats the provided content into a list of messages required by AnthropicBedrock API.
-
-        This method takes a string `content` and formats it into a list with one dictionary, where the dictionary
-        represents a message with a 'role' of 'user' and the 'content'
-        being the input string.
+        Formats the provided content into a list of messages required by OpenAI API.
 
         Args:
             content (str): The content to be formatted into a chat message.
 
         Returns:
             List[dict]: A list with a single dictionary with keys 'role' and 'content'.
-
         """
         messages = []
         title_message = {"role": "user", "content": content}
         messages.append(title_message)
-
         return messages
 
     def format_response(self, response: [Result | ToolResult | Message]) -> LLMTransaction:
@@ -181,49 +206,95 @@ class BedrockHandler:
 
         return llm_transaction(self.llm, payload)
 
-    def _format_chat_title_response(self, response: AnthropicMessage) -> LLMTransaction:
+    def _format_chat_title_response(self, response) -> LLMTransaction:
+        """Format OpenAI response for chat title."""
         result = LLMResponse(
-            content=response.content[0].text,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
+            content=response.choices[0].message.content,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
         )
-
         return llm_transaction(self.llm, result)
+
+    def _convert_tool_choice_to_openai_format(self, tool_choice):
+        """
+        Convert Anthropic tool_choice format to OpenAI format.
+
+        Anthropic: {"type": "tool", "name": "tool_name"}
+        OpenAI: {"type": "function", "function": {"name": "tool_name"}}
+        """
+        if isinstance(tool_choice, dict):
+            if tool_choice.get("type") == "tool" and "name" in tool_choice:
+                return {"type": "function", "function": {"name": tool_choice["name"]}}
+        return tool_choice
 
     async def _invoke_async(self, messages, **data) -> Result:
         logger.debug("LLM _invoke_async started")
-        config = self.config | data
-        logger.debug(f"Messages sent to LLM: {messages}")
-        response = await self.async_client.messages.create(messages=messages, **config)
+
+        # Convert messages to OpenAI format
+        openai_messages = self._convert_messages_to_openai_format(messages, data.pop("system", None))
+
+        # Build API call parameters
+        call_params = {"model": self.config["model"], "max_tokens": self.config["max_tokens"], "messages": openai_messages}
+
+        # Add any additional parameters from data
+        if "tools" in data:
+            call_params["tools"] = data["tools"]
+        if "tool_choice" in data:
+            call_params["tool_choice"] = self._convert_tool_choice_to_openai_format(data["tool_choice"])
+        if "temperature" in data:
+            call_params["temperature"] = data["temperature"]
+
+        logger.debug(f"Messages sent to LLM: {openai_messages}")
+
+        response = await self.async_client.chat.completions.create(**call_params)
         logger.debug("LLM _invoke_async completed")
-        return response
+
+        return self._convert_openai_response_to_result(response)
 
     @handle_region_failover_with_retries
     async def invoke_async(self, messages, **data) -> Result:
         return await self._invoke_async(messages, **data)
 
     async def _invoke_async_with_call_cost_details(self, messages, **data) -> LLMTransaction:
-        config = self.config | data
-        response = await self.async_client.messages.create(messages=messages, **config)
+        # Convert messages to OpenAI format
+        openai_messages = self._convert_messages_to_openai_format(messages, data.pop("system", None))
 
-        return self.format_response(response)
+        # Build API call parameters
+        call_params = {"model": self.config["model"], "max_tokens": self.config["max_tokens"], "messages": openai_messages}
+
+        # Add any additional parameters from data
+        if "tools" in data:
+            call_params["tools"] = data["tools"]
+        if "tool_choice" in data:
+            call_params["tool_choice"] = self._convert_tool_choice_to_openai_format(data["tool_choice"])
+        if "temperature" in data:
+            call_params["temperature"] = data["temperature"]
+
+        response = await self.async_client.chat.completions.create(**call_params)
+
+        result = self._convert_openai_response_to_result(response)
+        return self.format_response(result)
 
     @handle_region_failover_with_retries
     async def invoke_async_with_call_cost_details(self, messages, **data) -> LLMTransaction:
         return await self._invoke_async_with_call_cost_details(messages, **data)
 
-    async def _create_chat_title(self, messages: List[MessageParam]):
+    async def _create_chat_title(self, messages: List[dict]):
         """
-        Create a chat title using the LLM model configured in the init with the
+        Create a chat title using the LLM model configured in the init.
         Returns a LLMTransaction object encapsulating the title and the cost of generating it.
         """
+        # Convert messages to OpenAI format
+        openai_messages = self._convert_messages_to_openai_format(messages)
 
-        response = await self.async_client.messages.create(messages=messages, **self.config)
-        logger.debug(f"Messages sent to LLM {messages}")
+        response = await self.async_client.chat.completions.create(
+            model=self.config["model"], max_tokens=self.config["max_tokens"], messages=openai_messages
+        )
+        logger.debug(f"Messages sent to LLM {openai_messages}")
         return self._format_chat_title_response(response)
 
     @handle_region_failover_with_retries
-    async def create_chat_title(self, messages: List[MessageParam]) -> LLMTransaction:
+    async def create_chat_title(self, messages: List[dict]) -> LLMTransaction:
         return await self._create_chat_title(messages)
 
     def _stream(
@@ -234,17 +305,24 @@ class BedrockHandler:
         parse_data=None,
         **data,
     ):
-        config = self.config | data
+        # Convert messages to OpenAI format
+        openai_messages = self._convert_messages_to_openai_format(messages, system)
+
+        # Convert tool_choice if present
+        tool_choice = data.get("tool_choice")
+        if tool_choice:
+            tool_choice = self._convert_tool_choice_to_openai_format(tool_choice)
 
         bedrock_stream_input = BedrockStreamInput(
             async_client=self.async_client,
-            messages=messages,
-            max_tokens=config["max_tokens"],
-            model=config["model"],
+            messages=openai_messages,
+            max_tokens=self.config["max_tokens"],
+            model=self.config["model"],
             user_message=user_message,
             system=system,
             parse_data=parse_data,
-            **data,
+            tools=data.get("tools"),
+            tool_choice=tool_choice,
         )
         return bedrock_stream(bedrock_stream_input)
 

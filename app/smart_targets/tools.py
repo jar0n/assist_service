@@ -68,43 +68,49 @@ def generate_select_filters_tool_schema(filters_data: dict[str, Any]) -> dict[st
             }
 
     return {
-        "name": SELECT_FILTERS_TOOL_NAME,
-        "description": "A tool used to retrieve information about a given CampaignMetric, drawing on a central database of government campaigns data. This tool is used to select filters that should be applied when retrieving this data. For categorical filters, select multiple option names. For date/continuous filters, specify ranges.",
-        "input_schema": {"type": "object", "properties": properties},
+        "type": "function",
+        "function": {
+            "name": SELECT_FILTERS_TOOL_NAME,
+            "description": "A tool used to retrieve information about a given CampaignMetric, drawing on a central database of government campaigns data. This tool is used to select filters that should be applied when retrieving this data. For categorical filters, select multiple option names. For date/continuous filters, specify ranges.",
+            "parameters": {"type": "object", "properties": properties},
+        },
     }
 
 
 SELECT_METRICS_TOOL_NAME = "select_campaign_metrics"
 SELECT_METRICS_TOOL = {
-    "name": SELECT_METRICS_TOOL_NAME,
-    "description": f"A tool used to retrieve information about one or more CampaignMetrics from the Smart Targets tool. Select multiple metrics if the user's question would benefit from data about different types of measurements (e.g., both impressions and click-through rates, or awareness and understanding metrics). {SMART_TARGETS_TOOL_DEFINITION}",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "reasoning": {
-                "description": "A scratchpad to reason through your response before answering.",
-                "type": "string",
-            },
-            "selected_metrics": {
-                "description": "An array of selected metrics with context for each",
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "metric_name": {
-                            "description": "The 'name' of the campaign metric you wish to select.",
-                            "type": "string",
-                        },
-                        "context_for_filters": {
-                            "description": "Relevant information extracted from the chat that will help with filter selection for this specific metric (e.g., specific audiences, time periods, channels, or other constraints mentioned by the user).",
-                            "type": "string",
-                        },
-                    },
-                    "required": ["metric_name", "context_for_filters"],
+    "type": "function",
+    "function": {
+        "name": SELECT_METRICS_TOOL_NAME,
+        "description": f"A tool used to retrieve information about one or more CampaignMetrics from the Smart Targets tool. Select multiple metrics if the user's question would benefit from data about different types of measurements (e.g., both impressions and click-through rates, or awareness and understanding metrics). {SMART_TARGETS_TOOL_DEFINITION}",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "description": "A scratchpad to reason through your response before answering.",
+                    "type": "string",
                 },
-                "minItems": 0,
+                "selected_metrics": {
+                    "description": "An array of selected metrics with context for each",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "metric_name": {
+                                "description": "The 'name' of the campaign metric you wish to select.",
+                                "type": "string",
+                            },
+                            "context_for_filters": {
+                                "description": "Relevant information extracted from the chat that will help with filter selection for this specific metric (e.g., specific audiences, time periods, channels, or other constraints mentioned by the user).",
+                                "type": "string",
+                            },
+                        },
+                        "required": ["metric_name", "context_for_filters"],
+                    },
+                    "minItems": 0,
+                },
             },
+            "required": ["selected_metrics"],
         },
-        "required": ["selected_metrics"],
     },
 }

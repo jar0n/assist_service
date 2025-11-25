@@ -18,27 +18,30 @@ SYSTEM_PROMPT_INDEX_RELEVANCE_EVALUATOR = (
 TOOL_NAME_INDEX_RELEVANCE_EVALUATOR = "evaluate_index_relevance"
 
 TOOL_INDEX_RELEVANCE_EVALUATOR = {
-    "name": TOOL_NAME_INDEX_RELEVANCE_EVALUATOR,
-    "description": "Evaluate whether a search index is relevant for answering the user's query",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "reasoning": {
-                "type": "string",
-                "description": (
-                    "Thinking about of why this search index is or isn't relevant to the user's query. "
-                    "Consider the query topic, intent, and how well it matches the index's scope."
-                ),
+    "type": "function",
+    "function": {
+        "name": TOOL_NAME_INDEX_RELEVANCE_EVALUATOR,
+        "description": "Evaluate whether a search index is relevant for answering the user's query",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "description": (
+                        "Thinking about of why this search index is or isn't relevant to the user's query. "
+                        "Consider the query topic, intent, and how well it matches the index's scope."
+                    ),
+                },
+                "requires_index": {
+                    "type": "boolean",
+                    "description": (
+                        "True if this search index contains information that could help answer the user's query. "
+                        "False if the index is not relevant to the query topic or intent."
+                    ),
+                },
             },
-            "requires_index": {
-                "type": "boolean",
-                "description": (
-                    "True if this search index contains information that could help answer the user's query. "
-                    "False if the index is not relevant to the query topic or intent."
-                ),
-            },
+            "required": ["reasoning", "requires_index"],
         },
-        "required": ["reasoning", "requires_index"],
     },
 }
 
@@ -57,29 +60,32 @@ SYSTEM_PROMPT_OPENSEARCH_QUERY_GENERATOR = (
 TOOL_NAME_OPENSEARCH_QUERY_GENERATOR = "query_rewriter"
 
 TOOL_OPENSEARCH_QUERY_GENERATOR = {
-    "name": TOOL_NAME_OPENSEARCH_QUERY_GENERATOR,
-    "description": "Generate an array of OpenSearch queries",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "keyword_queries": {
-                "type": "array",
-                "minItems": 1,
-                "uniqueItems": True,
-                "description": (
-                    "An array of keyword queries to send to OpenSearch. "
-                    "By default, create 3 queries. "
-                    "You can create more or less queries if the user requests it, "
-                    "or if you think it will help get better results. "
-                    "When choosing words for your first query, "
-                    "quote the most appropriate words from the user's message. "
-                    "When choosing words for your additional queries, use synonyms "
-                    "so that you cover a wider search space (we are using the BM25 algorithm here "
-                    "so it's important to not use the same word too much). "
-                    "Make sure all queries are written in a single array."
-                ),
-                "items": {"type": "string", "description": "An OpenSearch keyword query based on the user's message."},
-            }
+    "type": "function",
+    "function": {
+        "name": TOOL_NAME_OPENSEARCH_QUERY_GENERATOR,
+        "description": "Generate an array of OpenSearch queries",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "keyword_queries": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": True,
+                    "description": (
+                        "An array of keyword queries to send to OpenSearch. "
+                        "By default, create 3 queries. "
+                        "You can create more or less queries if the user requests it, "
+                        "or if you think it will help get better results. "
+                        "When choosing words for your first query, "
+                        "quote the most appropriate words from the user's message. "
+                        "When choosing words for your additional queries, use synonyms "
+                        "so that you cover a wider search space (we are using the BM25 algorithm here "
+                        "so it's important to not use the same word too much). "
+                        "Make sure all queries are written in a single array."
+                    ),
+                    "items": {"type": "string", "description": "An OpenSearch keyword query based on the user's message."},
+                }
+            },
         },
     },
 }
@@ -99,27 +105,30 @@ SYSTEM_PROMPT_CHUNK_RELEVANCE_EVALUATOR = (
 TOOL_NAME_CHUNK_RELEVANCE_EVALUATOR = "evaluate_chunk_relevance"
 
 TOOL_CHUNK_RELEVANCE_EVALUATOR = {
-    "name": TOOL_NAME_CHUNK_RELEVANCE_EVALUATOR,
-    "description": "Evaluate whether a document chunk is relevant to the user's query",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "reasoning": {
-                "type": "string",
-                "description": (
-                    "Brief explanation of why the chunk is or isn't relevant to the user's query. "
-                    "This helps when thinking step by step through the evaluation."
-                ),
+    "type": "function",
+    "function": {
+        "name": TOOL_NAME_CHUNK_RELEVANCE_EVALUATOR,
+        "description": "Evaluate whether a document chunk is relevant to the user's query",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "description": (
+                        "Brief explanation of why the chunk is or isn't relevant to the user's query. "
+                        "This helps when thinking step by step through the evaluation."
+                    ),
+                },
+                "is_relevant": {
+                    "type": "boolean",
+                    "description": (
+                        "True if the document chunk contains information relevant to the user's query. "
+                        "False if the chunk is not relevant or useful for answering the user's question. "
+                    ),
+                },
             },
-            "is_relevant": {
-                "type": "boolean",
-                "description": (
-                    "True if the document chunk contains information relevant to the user's query. "
-                    "False if the chunk is not relevant or useful for answering the user's question. "
-                ),
-            },
+            "required": ["is_relevant", "reasoning"],
         },
-        "required": ["is_relevant", "reasoning"],
     },
 }
 
