@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the Copilot API (now known as "Assist"), a GenAI-powered FastAPI service for the GCS (Government Communication Service) chat project. It provides a REST API with chat functionality, document management, RAG (Retrieval Augmented Generation), and integrates with AWS Bedrock for LLM services.
+This is the Copilot API (now known as "Assist"), a GenAI-powered FastAPI service for the GCS (Government Communication Service) chat project. It provides a REST API with chat functionality, document management, RAG (Retrieval Augmented Generation), and integrates with OpenAI API for LLM services.
 
 ## Development Commands
 
@@ -26,7 +26,7 @@ This is the Copilot API (now known as "Assist"), a GenAI-powered FastAPI service
 - **Run all tests**: `make test` (sets up test DB and runs full suite)
 - **Specific test suites**:
   - `make test-chat` - Chat functionality tests
-  - `make test-bedrock` - AWS Bedrock integration tests
+  - `make test-bedrock` - LLM integration tests (name kept for backwards compatibility)
   - `make test-central-guidance` - RAG/central guidance tests
   - `make test-document-upload` - Document upload tests
   - `make test-gov-uk-search` - Gov.UK search integration tests
@@ -48,7 +48,7 @@ app/
 ├── database/               # Database models, sessions, operations
 ├── api/                    # API layer (endpoints, responses, paths)
 ├── auth/                   # Authentication and session management
-├── bedrock/                # AWS Bedrock LLM integration
+├── bedrock/                # OpenAI LLM integration (name kept for backwards compatibility)
 ├── chat/                   # Core chat functionality
 ├── central_guidance/       # RAG system for central documentation
 ├── document_upload/        # Personal document management and RAG
@@ -161,14 +161,15 @@ from app.auth.utils import verify_and_parse_uuid
 ```
 
 ### LLM Configuration
-The system uses multiple Claude models via AWS Bedrock for different purposes:
-- **Chat Response**: `claude-sonnet-4-20250514-v1:0` (highest quality)
-- **Chat Titles**: `claude-3-7-sonnet-20250219-v1:0`
-- **Query Generation**: `claude-3-7-sonnet-20250219-v1:0`
-- **Index Routing**: `claude-3-5-haiku-20241022-v1:0` (lightweight decisions)
-- **Document Review**: `claude-3-5-haiku-20241022-v1:0`
+The system uses OpenAI models for different purposes:
+- **Chat Response**: `gpt-4o` (highest quality responses)
+- **Chat Titles**: `gpt-4o` (natural language understanding)
+- **Query Generation**: `gpt-4o` (complex reasoning and rewriting)
+- **Index Routing**: `gpt-4o-mini` (lightweight routing decisions)
+- **Document Review**: `gpt-4o-mini` (fast relevance checks)
+- **Message Compaction**: `gpt-4o-mini` (summarization)
 
-Models are configured in `app/config.py` and can be overridden via environment variables.
+Models are configured in `app/config.py` and can be overridden via environment variables. The system automatically converts between Anthropic and OpenAI message formats for backwards compatibility.
 
 ### RAG System Architecture
 The RAG system operates through multiple components:
@@ -186,9 +187,11 @@ The RAG system operates through multiple components:
 ## Environment Configuration
 
 Key environment variables (defined in `.env`):
+- `OPENAI_API_KEY`: OpenAI API key (required for all LLM functionality)
+- `OPENAI_API_BASE`: Custom OpenAI-compatible endpoint (optional, defaults to `https://api.openai.com/v1`)
 - `USE_RAG`: Enable/disable RAG functionality
 - `DEBUG_MODE`: Enable debugpy debugging
-- `LLM_DEFAULT_MODEL`: Override default LLM model
+- `LLM_DEFAULT_MODEL`: Override default LLM model (defaults to `gpt-4o`)
 - Various model-specific configurations for different LLM use cases
 
 ## Testing Strategy
