@@ -1,0 +1,28 @@
+{
+  "name": "assist-service-cloudflare",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers deployment for Assist Service",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "cf-typegen": "wrangler types"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "containers",
+    "fastapi",
+    "assist-service"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.24.3"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.0.19",
+    "hono": "^4.8.2"
+  }
+}

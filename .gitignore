@@ -21,3 +21,11 @@ app/copilot_api.egg-info/*
 psql
 thoughts/
 .claude/
+
+# Cloudflare deployment
+js/node_modules/
+js/dist/
+js/.wrangler/
+js/wrangler.toml
+js/worker-configuration.d.ts
+js/package-lock.json

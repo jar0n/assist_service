@@ -1,0 +1,29 @@
+# Dockerfile for Assist Service - Cloudflare Container Deployment
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /code
+
+# Install system dependencies required for some Python packages
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libmagic1 \
+    pandoc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
+
+# Copy application code
+COPY app/ app/
+COPY data/ data/ 2>/dev/null || :
+
+# Expose port 8080 (required for Cloudflare Containers)
+EXPOSE 8080
+
+# Run FastAPI on port 8080
+CMD ["fastapi", "run", "app/main.py", "--port", "8080", "--host", "0.0.0.0"]
